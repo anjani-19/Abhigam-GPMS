@@ -24,7 +24,7 @@ export async function sendMobileNotification(title, options = {}) {
       icon: '/icon-192.png',
       badge: '/icon-192.png',
       vibrate: [200, 100, 200],
-      tag: options.tag || 'abhigam-pass-alert',
+      tag: options.tag || 'anumathi-pass-alert',
       renotify: true,
       requireInteraction: false,
       ...options,

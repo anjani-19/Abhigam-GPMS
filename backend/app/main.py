@@ -7,9 +7,26 @@ from .config import get_settings
 from .database import Base, engine
 from .routes.api import router
 
-app = FastAPI(title='Abhigam - GPMS API', version='1.0.0', description='Secure gate-pass workflow for JNN INSTITUTE')
-app.add_middleware(CORSMiddleware, allow_origins=get_settings().origins, allow_credentials=True, allow_methods=['*'], allow_headers=['*'])
+app = FastAPI(title='Anumathi - GPMS API', version='1.0.0', description='Secure gate-pass workflow for JNN INSTITUTE')
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=get_settings().origins,
+    allow_origin_regex=".*",
+    allow_credentials=True,
+    allow_methods=['*'],
+    allow_headers=['*'],
+)
 app.include_router(router, prefix='/api', tags=['Gate Pass'])
+
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+
+@app.get("/download-apk")
+def download_apk():
+    apk_path = ROOT_DIR / "app-debug.apk"
+    if apk_path.exists():
+        return FileResponse(apk_path, media_type="application/vnd.android.package-archive", filename="Anumathi-GPMS.apk")
+    return {"error": "app-debug.apk not found at project root"}
+
 
 @app.on_event('startup')
 def startup():

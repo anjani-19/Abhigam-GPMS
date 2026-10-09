@@ -2050,14 +2050,14 @@ def _send_college_inquiry_ack(body: CollegeInquiry, settings):
     from ..database import SessionLocal
     from ..models import SentEmail as SE
 
-    sender_address = settings.smtp_from_email or "no-reply@abhigam.in"
+    sender_address = settings.smtp_from_email or "no-reply@anumathi.in"
     subject = f"We received your request - {body.college_name}"
     plain = (
         f"Dear {body.contact_name},\n\n"
         f"Thank you for your interest in Anumathi.\n"
         f"We have received your inquiry for {body.college_name} and our admin team will review it "
         f"and reach out to you at {body.contact_email} within 24 hours.\n\n"
-        f"- Anumathi / Abhigam Support Team"
+        f"- Anumathi Support Team"
     )
     html = f"""<!DOCTYPE html><html><head><meta charset='utf-8'>
 <style>
@@ -2078,7 +2078,7 @@ def _send_college_inquiry_ack(body: CollegeInquiry, settings):
     <p>Our admin team will review your request and contact you at <strong>{body.contact_email}</strong> within <strong>24 hours</strong> with your login credentials.</p>
     <p style='color:#64748b;font-size:13px;margin-top:20px'>If you have any questions, reply to this email or contact us directly.</p>
   </div>
-  <div class='ft'>Anumathi - Intelligent Campus Gate Pass System - Powered by Abhigam</div>
+  <div class='ft'>Anumathi - Intelligent Campus Gate Pass System</div>
 </div></body></html>"""
 
     msg = EmailMessage()
@@ -2285,7 +2285,7 @@ def _send_college_decision_email(
     from ..database import SessionLocal
     from ..models import SentEmail as SE
 
-    sender_address = settings.smtp_from_email or "no-reply@abhigam.in"
+    sender_address = settings.smtp_from_email or "no-reply@anumathi.in"
 
     if approved:
         subject = f"Your college has been approved - {college_name}"
@@ -2298,7 +2298,7 @@ def _send_college_decision_email(
             f"  Login URL: {login_url}\n\n"
             f"Please log in and change your password immediately.\n"
             f"{'Note: ' + admin_notes if admin_notes else ''}\n\n"
-            f"- Anumathi / Abhigam Support Team"
+            f"- Anumathi Support Team"
         )
         html = f"""<!DOCTYPE html><html><head><meta charset='utf-8'>
 <style>
@@ -2329,7 +2329,7 @@ def _send_college_decision_email(
     {f"<p style='color:#475569;font-size:13px;margin-top:14px'><strong>Note:</strong> {admin_notes}</p>" if admin_notes else ''}
     <p><a href='{login_url}' class='btn-a'>Log In to Anumathi</a></p>
   </div>
-  <div class='ft'>Anumathi - Intelligent Campus Gate Pass System - Powered by Abhigam</div>
+  <div class='ft'>Anumathi - Intelligent Campus Gate Pass System</div>
 </div></body></html>"""
     else:
         subject = f"Update on your college request - {college_name}"
@@ -2338,7 +2338,7 @@ def _send_college_decision_email(
             f"We regret to inform you that your request for {college_name} could not be approved at this time.\n"
             f"{'Reason: ' + admin_notes if admin_notes else ''}\n\n"
             f"Please contact our support team for further assistance.\n"
-            f"- Anumathi / Abhigam Support Team"
+            f"- Anumathi Support Team"
         )
         html = f"""<!DOCTYPE html><html><head><meta charset='utf-8'>
 <style>
@@ -2357,7 +2357,7 @@ def _send_college_decision_email(
     {f"<p><strong>Reason:</strong> {admin_notes}</p>" if admin_notes else ''}
     <p>Please contact our support team if you believe this is a mistake or would like to re-apply.</p>
   </div>
-  <div class='ft'>Anumathi - Intelligent Campus Gate Pass System - Powered by Abhigam</div>
+  <div class='ft'>Anumathi - Intelligent Campus Gate Pass System</div>
 </div></body></html>"""
 
     msg = EmailMessage()

@@ -1,5 +1,5 @@
-// Abhigam GPMS — Progressive Web App Service Worker
-const CACHE_NAME = 'abhigam-gpms-v1';
+// Anumathi GPMS — Progressive Web App Service Worker
+const CACHE_NAME = 'anumathi-gpms-v1';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',

@@ -1,7 +1,7 @@
 @echo off
-title Build Android APK - Abhigam GPMS
+title Build Android APK - Anumathi GPMS
 echo ========================================================
-echo   Building Abhigam GPMS Native Android APK
+echo   Building Anumathi GPMS Native Android APK
 echo ========================================================
 echo.
 
@@ -30,10 +30,12 @@ call gradlew.bat assembleDebug
 echo.
 echo ========================================================
 if exist "app\build\outputs\apk\debug\app-debug.apk" (
-  echo SUCCESS! Your Android APK has been built:
-  echo %~dp0frontend\android\app\build\outputs\apk\debug\app-debug.apk
+  copy /y "app\build\outputs\apk\debug\app-debug.apk" "%~dp0app-debug.apk" >nul
+  echo SUCCESS! Your Android APK has been built and copied to root:
+  echo   1. %~dp0app-debug.apk
+  echo   2. %~dp0frontend\android\app\build\outputs\apk\debug\app-debug.apk
 ) else (
-  echo You can also open the project in Android Studio by running:
+  echo You can also compile directly in Android Studio by running:
   echo   cd frontend ^&^& npx cap open android
 )
 echo ========================================================

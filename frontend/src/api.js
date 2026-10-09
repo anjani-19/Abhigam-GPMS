@@ -1,12 +1,19 @@
 import axios from 'axios';
 
-export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+export const getApiBase = () => {
+  return (typeof window !== 'undefined' && localStorage.getItem('gpms_server_url')) ||
+    import.meta.env.VITE_API_BASE_URL ||
+    'http://localhost:8000/api';
+};
+
+export const API_BASE = getApiBase();
 
 const api = axios.create({
-  baseURL: API_BASE,
+  baseURL: getApiBase(),
 });
 
 api.interceptors.request.use((config) => {
+  config.baseURL = getApiBase();
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;

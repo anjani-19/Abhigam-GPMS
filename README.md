@@ -1,4 +1,4 @@
-# Abhigam — AI & IoT Smart Gate Pass Management System (GPMS)
+# Anumathi — AI & IoT Smart Gate Pass Management System (GPMS)
 
 Production full-stack gate-pass management platform for JNN INSTITUTE with real-time mobile push notifications, instant direct sign-in, Render cloud hosting blueprint, and native Android APK generation.
 

@@ -72,7 +72,7 @@ export default function InstallAppPrompt() {
             <Smartphone size={22} color="#ffffff" />
           </div>
           <div className="install-banner-text">
-            <strong>Install Abhigam App</strong>
+            <strong>Install Anumathi App</strong>
             <span>Add to home screen for faster 1-tap mobile access</span>
           </div>
         </div>

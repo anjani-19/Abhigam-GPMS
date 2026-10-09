@@ -340,7 +340,7 @@ export default function Landing() {
       </section>
 
       <footer className="landing-footer">
-        <span>© 2026 Anumathi — Intelligent Gate Pass System. Powered by Abhigam.</span>
+        <span>© 2026 Anumathi — Intelligent Gate Pass Management System | JNN INSTITUTE</span>
         <span>Secured with SHA-256 OTP &amp; Timed QR Encryption</span>
       </footer>
     </div>

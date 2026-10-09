@@ -19,8 +19,9 @@ services:
         value: "3.11.9"
 
   # ── REACT / VITE FRONTEND STATIC SITE ──
-  - type: static_site
+  - type: web
     name: abhigam-gpms-frontend
+    runtime: static
     rootDir: frontend
     buildCommand: "npm install && npm run build"
     staticPublishPath: dist

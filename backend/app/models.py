@@ -170,6 +170,8 @@ class GatePass(Base):
     exit_at: Mapped[datetime] = mapped_column(DateTime)
     return_at: Mapped[datetime] = mapped_column(DateTime)
     status: Mapped[PassStatus] = mapped_column(SAEnum(PassStatus), default=PassStatus.PENDING_CLASS_INCHARGE, index=True)
+    is_emergency: Mapped[bool] = mapped_column(Boolean, default=False)
+    emergency_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     qr_token: Mapped[str | None] = mapped_column(String(255), nullable=True)
     qr_token_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     qr_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

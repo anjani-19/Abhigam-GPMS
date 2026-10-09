@@ -738,6 +738,34 @@ export default function SecurityGate() {
                   </strong>
                 </div>
 
+                {/* Emergency Pass Priority Banner */}
+                {scannedPass.is_emergency && (
+                  <div
+                    style={{
+                      background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                      color: '#ffffff',
+                      padding: '10px 14px',
+                      borderRadius: 8,
+                      marginBottom: '1rem',
+                      fontSize: '0.88rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      boxShadow: '0 4px 12px rgba(220, 38, 38, 0.25)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: '1.2rem' }}>🚨</span>
+                      <div>
+                        <strong>EMERGENCY GATE PASS — PRIORITY CLEARANCE</strong>
+                        <div style={{ fontSize: '0.78rem', opacity: 0.95 }}>
+                          Authorized by HOD / Principal. Immediate exit permitted.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Status Callout Banner */}
                 {liveIsEarly && (
                   <div

@@ -14,6 +14,19 @@ app.include_router(router, prefix='/api', tags=['Gate Pass'])
 @app.on_event('startup')
 def startup():
     Base.metadata.create_all(engine)
+    try:
+        from sqlalchemy import text
+        with engine.begin() as conn:
+            # Check if is_emergency column exists on gate_passes
+            if engine.dialect.name == "sqlite":
+                res = conn.execute(text("PRAGMA table_info(gate_passes)")).fetchall()
+                col_names = [r[1] for r in res]
+                if "is_emergency" not in col_names:
+                    conn.execute(text("ALTER TABLE gate_passes ADD COLUMN is_emergency BOOLEAN DEFAULT 0"))
+                if "emergency_reason" not in col_names:
+                    conn.execute(text("ALTER TABLE gate_passes ADD COLUMN emergency_reason TEXT DEFAULT NULL"))
+    except Exception as e:
+        pass
 
 # Serve built frontend if dist/ exists (unified production deployment)
 frontend_dist = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"

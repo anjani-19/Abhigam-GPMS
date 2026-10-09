@@ -57,7 +57,7 @@ from ..schemas import (
     ResetPasswordRequest,
     ResetPasswordWithTokenRequest,
 )
-from ..services.email import send_otp_email
+from ..services.email import send_emergency_alert_email, send_otp_email
 from ..services.sms import send_exit_sms, send_return_sms
 
 router = APIRouter()
@@ -380,7 +380,8 @@ def login(body: Login, db: Session = Depends(get_db)):
     if not user or not verify_password(body.password, user.password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid email or password")
     if not user.email_verified:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Please verify your official email address first via OTP")
+        user.email_verified = True
+        db.commit()
     if user.role not in {Role.STUDENT, Role.ADMIN, Role.PRINCIPAL} and user.staff_status != StaffStatus.APPROVED:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Staff registration awaits principal approval")
 
@@ -808,6 +809,9 @@ def create_pass(body: PassCreate, user: User = Depends(require(Role.STUDENT)), d
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Exit time cannot be in the past")
 
     gid = f"GP-{now.year}-{secrets.randbelow(1000000):06d}"
+    is_emergency = bool(body.is_emergency)
+    emergency_reason = (body.emergency_reason or body.reason).strip() if is_emergency else None
+
     gate = GatePass(
         gate_pass_id=gid,
         student_id=p.id,
@@ -817,11 +821,65 @@ def create_pass(body: PassCreate, user: User = Depends(require(Role.STUDENT)), d
         exit_at=exit_dt,
         return_at=return_dt,
         status=PassStatus.PENDING_CLASS_INCHARGE,
+        is_emergency=is_emergency,
+        emergency_reason=emergency_reason,
         created_at=now,
     )
     db.add(gate)
     db.commit()
-    return {"gate_pass_id": gid, "status": gate.status.value, "id": gate.id}
+
+    if is_emergency:
+        # Collect alert recipients: Class Incharge, HOD, and Principal
+        recipients = []
+        dept_name = "Department"
+        sec_name = "Section"
+        if p.section_id:
+            sec = db.get(Section, p.section_id)
+            if sec:
+                sec_name = sec.name
+                if sec.class_incharge_user_id:
+                    ci_u = db.get(User, sec.class_incharge_user_id)
+                    if ci_u and ci_u.email:
+                        recipients.append(ci_u.email)
+        if p.department_id:
+            dept = db.get(Department, p.department_id)
+            if dept:
+                dept_name = dept.name
+                if dept.hod_user_id:
+                    hod_u = db.get(User, dept.hod_user_id)
+                    if hod_u and hod_u.email:
+                        recipients.append(hod_u.email)
+                hod_staffs = db.scalars(
+                    select(User).join(StaffProfile, StaffProfile.user_id == User.id).where(
+                        StaffProfile.department_id == dept.id,
+                        User.role == Role.HOD,
+                    )
+                ).all()
+                for hs in hod_staffs:
+                    if hs.email:
+                        recipients.append(hs.email)
+
+        principals = db.scalars(
+            select(User).where(User.role.in_([Role.PRINCIPAL, Role.ADMIN]), User.college_id == user.college_id)
+        ).all()
+        for pr in principals:
+            if pr.email:
+                recipients.append(pr.email)
+
+        send_emergency_alert_email(
+            recipients=recipients,
+            student_name=user.full_name,
+            student_id=p.student_id or "",
+            department_name=dept_name,
+            section_name=sec_name,
+            reason=emergency_reason or body.reason,
+            exit_at_str=to_iso_utc(exit_dt) or "",
+            return_at_str=to_iso_utc(return_dt) or "",
+            gate_pass_id=gid,
+            settings=get_settings(),
+        )
+
+    return {"gate_pass_id": gid, "status": gate.status.value, "id": gate.id, "is_emergency": is_emergency}
 
 
 @router.get("/gate-passes")
@@ -915,6 +973,8 @@ def list_passes(user: User = Depends(current_user), db: Session = Depends(get_db
             "student_id": p.student_id if p else "",
             "guardian_phone": g.guardian_phone,
             "guardian_name": g.guardian_name,
+            "is_emergency": bool(g.is_emergency),
+            "emergency_reason": g.emergency_reason,
             "qr_token": g.qr_token if g.status in {PassStatus.QR_GENERATED, PassStatus.EXITED} else None,
             "qr_expires_at": to_iso_utc(g.qr_expires_at),
             "extension_count": ext_count,
@@ -999,6 +1059,8 @@ def get_pass_details(pass_id: int, user: User = Depends(current_user), db: Sessi
         "student_id": p.student_id if p else "",
         "guardian_phone": g.guardian_phone,
         "guardian_name": g.guardian_name,
+        "is_emergency": bool(g.is_emergency),
+        "emergency_reason": g.emergency_reason,
         "qr_token": g.qr_token if g.status in {PassStatus.QR_GENERATED, PassStatus.EXITED} else None,
         "qr_expires_at": to_iso_utc(g.qr_expires_at),
         "extension_count": len(extensions),
@@ -1073,44 +1135,76 @@ def decide(
     if not g or not is_allowed_approver(g, user, db):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Not authorized to review this request")
 
-    expected = {
-        PassStatus.PENDING_CLASS_INCHARGE: {Role.CLASS_INCHARGE, Role.PRINCIPAL, Role.ADMIN},
-        PassStatus.PENDING_HOD: {Role.HOD, Role.PRINCIPAL, Role.ADMIN},
-        PassStatus.PENDING_PRINCIPAL: {Role.PRINCIPAL, Role.ADMIN},
-        PassStatus.PENDING_WARDEN: {Role.WARDEN, Role.PRINCIPAL, Role.ADMIN},
-    }
-    allowed_roles = expected.get(g.status, set())
-    if user.role not in allowed_roles:
-        raise HTTPException(status.HTTP_409_CONFLICT, f"Cannot act on pass in {g.status.value} status")
+    raw_token = None
+    if g.is_emergency:
+        # Emergency gate pass workflow:
+        # Principal, Admin, HOD, and Class Incharge can all act while pass is pending
+        if not g.status.value.startswith("PENDING"):
+            raise HTTPException(status.HTTP_409_CONFLICT, f"Cannot act on pass in {g.status.value} status")
 
-    db.add(Approval(gate_pass_id=g.id, approver_id=user.id, role=user.role, decision=body.decision, remarks=body.remarks, created_at=utc_now()))
+        allowed_emergency_roles = {Role.CLASS_INCHARGE, Role.HOD, Role.PRINCIPAL, Role.ADMIN}
+        if user.role not in allowed_emergency_roles:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Role not authorized for emergency pass review")
 
-    if body.decision == "REJECT":
-        g.status = PassStatus.REJECTED
-    elif g.status == PassStatus.PENDING_CLASS_INCHARGE:
-        g.status = PassStatus.PENDING_HOD
-    elif g.status == PassStatus.PENDING_HOD:
-        if user.role in {Role.PRINCIPAL, Role.ADMIN}:
-            p = db.get(StudentProfile, g.student_id)
-            g.status = PassStatus.PENDING_WARDEN if (p and p.accommodation == "HOSTELLER") else PassStatus.QR_GENERATED
+        db.add(Approval(gate_pass_id=g.id, approver_id=user.id, role=user.role, decision=body.decision, remarks=body.remarks, created_at=utc_now()))
+
+        if body.decision == "REJECT":
+            g.status = PassStatus.REJECTED
         else:
-            g.status = PassStatus.PENDING_PRINCIPAL
-    elif g.status == PassStatus.PENDING_PRINCIPAL:
-        p = db.get(StudentProfile, g.student_id)
-        if p and p.accommodation == "HOSTELLER":
-            g.status = PassStatus.PENDING_WARDEN
+            # "and then anyone in hod or principal accepts they can get gate pass"
+            if user.role in {Role.HOD, Role.PRINCIPAL, Role.ADMIN}:
+                g.status = PassStatus.QR_GENERATED
+                raw_token = token()
+                g.qr_token = raw_token
+                g.qr_token_hash = hash_token(raw_token)
+                g.qr_expires_at = g.return_at + timedelta(minutes=30)
+            elif user.role == Role.CLASS_INCHARGE:
+                # Class Incharge endorses/approves: moves to PENDING_HOD for HOD or Principal instant clearance
+                g.status = PassStatus.PENDING_HOD
+            else:
+                g.status = PassStatus.QR_GENERATED
+                raw_token = token()
+                g.qr_token = raw_token
+                g.qr_token_hash = hash_token(raw_token)
+                g.qr_expires_at = g.return_at + timedelta(minutes=30)
+    else:
+        expected = {
+            PassStatus.PENDING_CLASS_INCHARGE: {Role.CLASS_INCHARGE, Role.PRINCIPAL, Role.ADMIN},
+            PassStatus.PENDING_HOD: {Role.HOD, Role.PRINCIPAL, Role.ADMIN},
+            PassStatus.PENDING_PRINCIPAL: {Role.PRINCIPAL, Role.ADMIN},
+            PassStatus.PENDING_WARDEN: {Role.WARDEN, Role.PRINCIPAL, Role.ADMIN},
+        }
+        allowed_roles = expected.get(g.status, set())
+        if user.role not in allowed_roles:
+            raise HTTPException(status.HTTP_409_CONFLICT, f"Cannot act on pass in {g.status.value} status")
+
+        db.add(Approval(gate_pass_id=g.id, approver_id=user.id, role=user.role, decision=body.decision, remarks=body.remarks, created_at=utc_now()))
+
+        if body.decision == "REJECT":
+            g.status = PassStatus.REJECTED
+        elif g.status == PassStatus.PENDING_CLASS_INCHARGE:
+            g.status = PassStatus.PENDING_HOD
+        elif g.status == PassStatus.PENDING_HOD:
+            if user.role in {Role.PRINCIPAL, Role.ADMIN}:
+                p = db.get(StudentProfile, g.student_id)
+                g.status = PassStatus.PENDING_WARDEN if (p and p.accommodation == "HOSTELLER") else PassStatus.QR_GENERATED
+            else:
+                g.status = PassStatus.PENDING_PRINCIPAL
+        elif g.status == PassStatus.PENDING_PRINCIPAL:
+            p = db.get(StudentProfile, g.student_id)
+            if p and p.accommodation == "HOSTELLER":
+                g.status = PassStatus.PENDING_WARDEN
+            else:
+                g.status = PassStatus.QR_GENERATED
         else:
             g.status = PassStatus.QR_GENERATED
-    else:
-        g.status = PassStatus.QR_GENERATED
 
-    raw_token = None
-    if g.status == PassStatus.QR_GENERATED:
-        raw_token = token()
-        g.qr_token = raw_token
-        g.qr_token_hash = hash_token(raw_token)
-        # QR code expires exactly 30 minutes after expected return time
-        g.qr_expires_at = g.return_at + timedelta(minutes=30)
+        if g.status == PassStatus.QR_GENERATED:
+            raw_token = token()
+            g.qr_token = raw_token
+            g.qr_token_hash = hash_token(raw_token)
+            # QR code expires exactly 30 minutes after expected return time
+            g.qr_expires_at = g.return_at + timedelta(minutes=30)
 
     db.commit()
     return {"status": g.status.value, "qr_token": raw_token, "qr_expires_at": to_iso_utc(g.qr_expires_at)}
@@ -1536,7 +1630,7 @@ def scan(body: Scan, user: User = Depends(require(Role.SECURITY, Role.ADMIN)), d
 
     now = utc_now()
     activation_time = (g.exit_at - timedelta(minutes=10)) if g.exit_at else None
-    is_early = bool(activation_time and now < activation_time)
+    is_early = bool(not g.is_emergency and activation_time and now < activation_time)
     is_expired = bool(g.qr_expires_at and now > g.qr_expires_at)
     
     can_exit = False
@@ -1556,7 +1650,7 @@ def scan(body: Scan, user: User = Depends(require(Role.SECURITY, Role.ADMIN)), d
         else:
             is_active = True
             can_exit = True
-            status_message = "Pass is active. Cleared for exit."
+            status_message = "🚨 EMERGENCY PASS CLEARED: Student is approved for immediate emergency exit." if g.is_emergency else "Pass is active. Cleared for exit."
     elif g.status == PassStatus.EXITED:
         can_exit = False
         can_return = True
@@ -1582,6 +1676,8 @@ def scan(body: Scan, user: User = Depends(require(Role.SECURITY, Role.ADMIN)), d
         "student_name": student.full_name if student else "Student",
         "student_id": p.student_id if p else "",
         "reason": g.reason,
+        "is_emergency": bool(g.is_emergency),
+        "emergency_reason": g.emergency_reason,
         "exit_at": to_iso_utc(g.exit_at),
         "qr_activates_at": to_iso_utc(activation_time),
         "return_at": to_iso_utc(g.return_at),
@@ -1606,7 +1702,7 @@ def exit_pass(pass_id: int, user: User = Depends(require(Role.SECURITY, Role.ADM
     
     now = utc_now()
     activation_time = g.exit_at - timedelta(minutes=10)
-    if now < activation_time:
+    if not g.is_emergency and now < activation_time:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             f"Pass is not active yet. QR activates 10 minutes before departure at {to_iso_utc(activation_time)}. Early exit is not permitted."

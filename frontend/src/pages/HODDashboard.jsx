@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   GraduationCap, Users, BookOpen, UserCheck, ChevronDown, ChevronRight,
   Search, Shield, CheckCircle2, AlertCircle, Clock, ShieldCheck,
-  Building2, Eye, X, Check, Filter,
+  Building2, Eye, X, Check, Filter, Flame, Zap,
 } from 'lucide-react';
 import api from '../api';
 import Navbar from '../components/Navbar';
@@ -69,7 +69,8 @@ export default function HODDashboard() {
 
   useEffect(() => { loadData(); }, []);
 
-  const pendingPasses = passes.filter((p) => p.status === 'PENDING_HOD');
+  const pendingEmergencyPasses = passes.filter((p) => p.is_emergency && p.status?.startsWith('PENDING'));
+  const pendingPasses = passes.filter((p) => p.status === 'PENDING_HOD' || (p.is_emergency && p.status?.startsWith('PENDING')));
   const pendingExtensions = extensionRequests.filter((e) => e.status === 'PENDING');
   const displayedPasses = passFilter === 'pending' ? pendingPasses : passes;
 
@@ -81,9 +82,12 @@ export default function HODDashboard() {
         decision,
         remarks: remarks || (decision === 'APPROVE' ? 'Approved by HOD' : 'Rejected by HOD'),
       });
+      const isApprovedQR = res.data.status === 'QR_GENERATED';
       setFeedback({
         type: 'success',
-        text: `Pass ${decision === 'APPROVE' ? 'approved' : 'rejected'}. New status: ${res.data.status}`,
+        text: isApprovedQR
+          ? `Pass APPROVED! Exit QR token issued immediately to student.`
+          : `Pass ${decision === 'APPROVE' ? 'approved' : 'rejected'}. New status: ${res.data.status}`,
       });
       setSelectedPass(null);
       setRemarks('');
@@ -131,7 +135,7 @@ export default function HODDashboard() {
     (acc, yr) => acc + yr.sections.reduce((a, s) => a + s.student_count, 0), 0
   ) ?? 0;
 
-  const getStatusBadge = (status) => {
+  const getStatusBadge = (status, isEmergency = false) => {
     const map = {
       PENDING_CLASS_INCHARGE: { label: 'Awaiting Incharge', color: '#d97706', bg: '#fffbeb' },
       PENDING_HOD: { label: 'Awaiting HOD', color: '#7c3aed', bg: '#ede9fe' },
@@ -144,9 +148,16 @@ export default function HODDashboard() {
     };
     const s = map[status] || { label: status, color: '#64748b', bg: '#f8fafc' };
     return (
-      <span style={{ padding: '2px 10px', borderRadius: 12, fontSize: '0.72rem', fontWeight: 700, background: s.bg, color: s.color, whiteSpace: 'nowrap' }}>
-        {s.label}
-      </span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start' }}>
+        {isEmergency && (
+          <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: '0.66rem', fontWeight: 800, background: '#fee2e2', color: '#dc2626', border: '1px solid #f87171', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+            🚨 EMERGENCY
+          </span>
+        )}
+        <span style={{ padding: '2px 10px', borderRadius: 12, fontSize: '0.72rem', fontWeight: 700, background: s.bg, color: s.color, whiteSpace: 'nowrap' }}>
+          {s.label}
+        </span>
+      </div>
     );
   };
 
@@ -240,6 +251,87 @@ export default function HODDashboard() {
           </div>
         )}
 
+        {/* 🚨 Urgent Emergency Pass Alert Banner for HOD */}
+        {pendingEmergencyPasses.length > 0 && (
+          <div style={{
+            background: 'linear-gradient(135deg, #fff1f2 0%, #fee2e2 100%)',
+            border: '2px solid #f87171',
+            borderRadius: 14,
+            padding: '1.1rem 1.4rem',
+            marginBottom: '1.5rem',
+            boxShadow: '0 4px 16px rgba(239, 68, 68, 0.15)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '0.85rem' }}>
+              <span style={{
+                background: '#dc2626',
+                color: '#fff',
+                borderRadius: '50%',
+                width: 34,
+                height: 34,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 0 0 4px rgba(220, 38, 38, 0.2)',
+                flexShrink: 0,
+              }}>
+                <Flame size={20} />
+              </span>
+              <div>
+                <h4 style={{ margin: 0, color: '#991b1b', fontSize: '1.05rem', fontWeight: 800 }}>
+                  🚨 ACTION REQUIRED: {pendingEmergencyPasses.length} Emergency Gate Pass Request(s)
+                </h4>
+                <p style={{ margin: '2px 0 0', color: '#b91c1c', fontSize: '0.83rem' }}>
+                  Student(s) require urgent exit. As HOD, your approval immediately generates their active exit QR pass.
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {pendingEmergencyPasses.map((ep) => (
+                <div key={ep.id} style={{
+                  background: '#ffffff',
+                  border: '1px solid #fca5a5',
+                  borderRadius: 10,
+                  padding: '0.75rem 1rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 10,
+                }}>
+                  <div>
+                    <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '0.9rem' }}>
+                      {ep.student_name} <span style={{ color: '#64748b', fontWeight: 600, fontSize: '0.82rem' }}>({ep.student_id})</span>
+                    </div>
+                    <div style={{ color: '#dc2626', fontSize: '0.82rem', fontWeight: 600, marginTop: 2 }}>
+                      Reason: {ep.emergency_reason || ep.reason}
+                    </div>
+                  </div>
+                  <button
+                    className="btn btn-sm"
+                    onClick={() => {
+                      setSelectedPass(ep);
+                      setActiveTab('passes');
+                      setPassFilter('pending');
+                    }}
+                    style={{
+                      background: '#dc2626',
+                      borderColor: '#dc2626',
+                      color: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      fontWeight: 700,
+                    }}
+                  >
+                    <Zap size={14} /> Review & Approve Now
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* ── GATE PASSES TAB ── */}
         {activeTab === 'passes' && (
           <div className="content-card">
@@ -328,6 +420,28 @@ export default function HODDashboard() {
                   </div>
                 )}
 
+                {/* Emergency Pass Protocol Notice */}
+                {selectedPass.is_emergency && (
+                  <div style={{
+                    background: '#fff1f2',
+                    border: '1px solid #fecdd3',
+                    borderRadius: 8,
+                    padding: '10px 14px',
+                    marginBottom: 12,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                  }}>
+                    <Flame size={20} color="#dc2626" />
+                    <div>
+                      <strong style={{ color: '#9f1239', fontSize: '0.85rem' }}>🚨 EMERGENCY GATE PASS PROTOCOL:</strong>
+                      <span style={{ color: '#be123c', fontSize: '0.82rem', display: 'block' }}>
+                        Under emergency rules, approving this pass right now will immediately generate the active QR gate pass for the student.
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 <textarea
                   className="form-control"
                   placeholder="Approver remarks / notes (optional)"
@@ -337,8 +451,19 @@ export default function HODDashboard() {
                   style={{ marginBottom: 10, resize: 'vertical' }}
                 />
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn btn-success" disabled={actionLoading} onClick={() => handleDecision(selectedPass.id, 'APPROVE')}>
-                    <Check size={16} /> Approve Pass
+                  <button
+                    className="btn"
+                    style={{
+                      background: selectedPass.is_emergency ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' : '#16a34a',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontWeight: 700,
+                    }}
+                    disabled={actionLoading}
+                    onClick={() => handleDecision(selectedPass.id, 'APPROVE')}
+                  >
+                    {selectedPass.is_emergency ? <Zap size={16} /> : <Check size={16} />}
+                    {selectedPass.is_emergency ? 'Approve Emergency Pass (Instant QR)' : 'Approve Pass'}
                   </button>
                   <button className="btn btn-danger" disabled={actionLoading} onClick={() => handleDecision(selectedPass.id, 'REJECT')}>
                     <X size={16} /> Reject Pass
@@ -410,11 +535,24 @@ export default function HODDashboard() {
                             </span>
                           )}
                         </td>
-                        <td>{getStatusBadge(p.status)}</td>
+                        <td>{getStatusBadge(p.status, p.is_emergency)}</td>
                         <td style={{ textAlign: 'right' }}>
-                          {p.status === 'PENDING_HOD' ? (
-                            <button className="btn btn-sm btn-primary" onClick={() => { setSelectedPass(p); setRemarks(''); }}>
-                              <Eye size={14} /> Review
+                          {(p.status === 'PENDING_HOD' || (p.is_emergency && p.status?.startsWith('PENDING'))) ? (
+                            <button
+                              className="btn btn-sm"
+                              style={{
+                                background: p.is_emergency ? '#dc2626' : undefined,
+                                borderColor: p.is_emergency ? '#dc2626' : undefined,
+                                color: p.is_emergency ? '#ffffff' : undefined,
+                                fontWeight: p.is_emergency ? 700 : undefined,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                              }}
+                              onClick={() => { setSelectedPass(p); setRemarks(''); }}
+                            >
+                              {p.is_emergency ? <Zap size={14} /> : <Eye size={14} />}
+                              {p.is_emergency ? 'Emergency Review' : 'Review'}
                             </button>
                           ) : (
                             <button className="btn btn-sm btn-secondary" onClick={() => setSelectedPass(p)}>

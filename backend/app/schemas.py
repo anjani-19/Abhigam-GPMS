@@ -3,12 +3,12 @@ from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 from .models import Role
 class Register(BaseModel):
-    full_name:str=Field(min_length=2,max_length=150); email:EmailStr; password:str=Field(min_length=6,max_length=8); college_id:int=1; student_id:str|None=None; employee_id:str|None=None; phone:str=Field(min_length=7,max_length=25); role:Role=Role.STUDENT; department_id:int|None=None
+    full_name:str=Field(min_length=2,max_length=150); email:EmailStr; password:str=Field(min_length=6,max_length=128); college_id:int=1; student_id:str|None=None; employee_id:str|None=None; phone:str=Field(min_length=7,max_length=25); role:Role=Role.STUDENT; department_id:int|None=None
     @field_validator("password")
     @classmethod
     def validate_password(cls, v: str) -> str:
-        if len(v) < 6 or len(v) > 8:
-            raise ValueError("Password must be 6–8 characters long")
+        if len(v) < 6:
+            raise ValueError("Password must be at least 6 characters long")
         if not re.search(r'[a-z]', v):
             raise ValueError("Password must contain at least one lowercase letter")
         if not re.search(r'[A-Z]', v):
@@ -74,10 +74,15 @@ class ResetPasswordWithTokenRequest(BaseModel):
 
 class ProfileUpdate(BaseModel): phone:str|None=None; gender:str|None=None; department_id:int|None=None; year_id:int|None=None; semester_id:int|None=None; section_id:int|None=None; cgpa:str|None=None; arrears:int|None=None; guardian_name:str|None=None; guardian_relationship:str|None=None; guardian_phone:str|None=None; accommodation:str|None=None; hostel_block_id:int|None=None; room_number:str|None=None
 class PassCreate(BaseModel):
-    reason:str=Field(min_length=10,max_length=1000); exit_at:datetime; return_at:datetime
+    reason: str = Field(min_length=3, max_length=1000)
+    exit_at: datetime
+    return_at: datetime
+    is_emergency: bool = False
+    emergency_reason: str | None = None
     @model_validator(mode="after")
     def valid_dates(self):
-        if self.return_at<=self.exit_at: raise ValueError("Return must be after exit")
+        if self.return_at <= self.exit_at:
+            raise ValueError("Return must be after exit")
         return self
 class Decision(BaseModel): decision:str=Field(pattern="^(APPROVE|REJECT)$"); remarks:str|None=None
 class Scan(BaseModel): token:str=Field(min_length=1)

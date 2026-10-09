@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   ShieldCheck, CheckCircle2, XCircle, Clock, AlertCircle,
-  Eye, Check, X, Users, UserCheck, GraduationCap, Building2,
+  Eye, Check, X, Users, UserCheck, GraduationCap, Building2, Flame, Zap,
 } from 'lucide-react';
 import api from '../api';
 import Navbar from '../components/Navbar';
@@ -95,10 +95,11 @@ export default function StaffDashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  const isAwaitingMyRole = (passStatus, role) => {
+  const isAwaitingMyRole = (passStatus, role, isEmergency = false) => {
+    if (isEmergency && (role === 'PRINCIPAL' || role === 'ADMIN')) return passStatus.startsWith('PENDING');
     if (role === 'PRINCIPAL' || role === 'ADMIN') return passStatus.startsWith('PENDING');
     if (role === 'CLASS_INCHARGE') return passStatus === 'PENDING_CLASS_INCHARGE';
-    if (role === 'HOD') return passStatus === 'PENDING_HOD';
+    if (role === 'HOD') return passStatus === 'PENDING_HOD' || (isEmergency && passStatus.startsWith('PENDING'));
     if (role === 'WARDEN') return passStatus === 'PENDING_WARDEN';
     return false;
   };
@@ -111,9 +112,12 @@ export default function StaffDashboard() {
         decision,
         remarks: remarks || (decision === 'APPROVE' ? 'Approved by faculty' : 'Rejected'),
       });
+      const isApprovedQR = res.data.status === 'QR_GENERATED';
       setFeedback({
         type: 'success',
-        text: `Pass ${decision === 'APPROVE' ? 'approved' : 'rejected'} successfully. New status: ${res.data.status}`,
+        text: isApprovedQR
+          ? `Gate Pass APPROVED! Digital QR issued immediately to student.`
+          : `Pass ${decision === 'APPROVE' ? 'approved' : 'rejected'} successfully. New status: ${res.data.status}`,
       });
       setSelectedPass(null);
       setRemarks('');
@@ -184,7 +188,8 @@ export default function StaffDashboard() {
     return <div style={{ textAlign: 'center', padding: '5rem', color: '#64748b' }}>Loading faculty workspace...</div>;
   }
 
-  const pendingMyAction = passes.filter((p) => isAwaitingMyRole(p.status, user?.role));
+  const pendingMyAction = passes.filter((p) => isAwaitingMyRole(p.status, user?.role, p.is_emergency));
+  const pendingEmergencyPasses = passes.filter((p) => p.is_emergency && p.status?.startsWith('PENDING'));
   const pendingStaff = staffList.filter((s) => s.staff_status === 'PENDING');
   const pendingExtensions = extensionRequests.filter((e) => e.status === 'PENDING');
   const displayedPasses = activeTab === 'pending' ? pendingMyAction : passes;
@@ -359,6 +364,88 @@ export default function StaffDashboard() {
           <div className={`alert alert-${feedback.type}`} style={{ marginBottom: '1.5rem' }}>
             {feedback.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
             <span>{feedback.text}</span>
+          </div>
+        )}
+
+        {/* 🚨 Urgent Emergency Pass Alert Banner for Staff (Principal, Admin, Incharge) */}
+        {pendingEmergencyPasses.length > 0 && (
+          <div style={{
+            background: 'linear-gradient(135deg, #fff1f2 0%, #fee2e2 100%)',
+            border: '2px solid #f87171',
+            borderRadius: 14,
+            padding: '1.1rem 1.4rem',
+            marginBottom: '1.5rem',
+            boxShadow: '0 4px 16px rgba(239, 68, 68, 0.15)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '0.85rem' }}>
+              <span style={{
+                background: '#dc2626',
+                color: '#fff',
+                borderRadius: '50%',
+                width: 34,
+                height: 34,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 0 0 4px rgba(220, 38, 38, 0.2)',
+                flexShrink: 0,
+              }}>
+                <Flame size={20} />
+              </span>
+              <div>
+                <h4 style={{ margin: 0, color: '#991b1b', fontSize: '1.05rem', fontWeight: 800 }}>
+                  🚨 ACTION REQUIRED: {pendingEmergencyPasses.length} Emergency Gate Pass Request(s)
+                </h4>
+                <p style={{ margin: '2px 0 0', color: '#b91c1c', fontSize: '0.83rem' }}>
+                  {(user?.role === 'PRINCIPAL' || user?.role === 'ADMIN')
+                    ? 'Student(s) require urgent campus exit. Under emergency protocol, Principal approval immediately generates their active exit QR pass.'
+                    : 'Student(s) in your section have submitted urgent emergency gate pass requests.'}
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {pendingEmergencyPasses.map((ep) => (
+                <div key={ep.id} style={{
+                  background: '#ffffff',
+                  border: '1px solid #fca5a5',
+                  borderRadius: 10,
+                  padding: '0.75rem 1rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 10,
+                }}>
+                  <div>
+                    <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '0.9rem' }}>
+                      {ep.student_name} <span style={{ color: '#64748b', fontWeight: 600, fontSize: '0.82rem' }}>({ep.student_id})</span>
+                    </div>
+                    <div style={{ color: '#dc2626', fontSize: '0.82rem', fontWeight: 600, marginTop: 2 }}>
+                      Reason: {ep.emergency_reason || ep.reason}
+                    </div>
+                  </div>
+                  <button
+                    className="btn btn-sm"
+                    onClick={() => {
+                      setSelectedPass(ep);
+                      setActiveTab('pending');
+                    }}
+                    style={{
+                      background: '#dc2626',
+                      borderColor: '#dc2626',
+                      color: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      fontWeight: 700,
+                    }}
+                  >
+                    <Zap size={14} /> Review & Act Now
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -906,7 +993,7 @@ export default function StaffDashboard() {
                 </thead>
                 <tbody>
                   {displayedPasses.map((p) => {
-                    const needsAction = isAwaitingMyRole(p.status, user?.role);
+                    const needsAction = isAwaitingMyRole(p.status, user?.role, p.is_emergency);
                     const timing = getPassTiming(p, now);
                     return (
                       <tr key={p.id}>
@@ -956,17 +1043,45 @@ export default function StaffDashboard() {
                           <small style={{ color: '#64748b' }}>{p.guardian_phone || 'N/A'}</small>
                         </td>
                         <td>
-                          <span className={`badge ${p.status === 'QR_GENERATED' ? 'badge-approved' : p.status === 'REJECTED' ? 'badge-rejected' : 'badge-pending'}`}>
-                            {p.status.replace(/_/g, ' ')}
-                          </span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start' }}>
+                            {p.is_emergency && (
+                              <span style={{
+                                fontSize: '0.66rem',
+                                fontWeight: 800,
+                                padding: '2px 8px',
+                                borderRadius: 6,
+                                background: '#fee2e2',
+                                color: '#dc2626',
+                                border: '1px solid #f87171',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 3,
+                              }}>
+                                🚨 EMERGENCY
+                              </span>
+                            )}
+                            <span className={`badge ${p.status === 'QR_GENERATED' ? 'badge-approved' : p.status === 'REJECTED' ? 'badge-rejected' : 'badge-pending'}`}>
+                              {p.status.replace(/_/g, ' ')}
+                            </span>
+                          </div>
                         </td>
                         <td style={{ textAlign: 'right' }}>
                           {needsAction ? (
                             <button
-                              className="btn btn-primary btn-sm"
+                              className="btn btn-sm"
+                              style={{
+                                background: p.is_emergency ? '#dc2626' : undefined,
+                                borderColor: p.is_emergency ? '#dc2626' : undefined,
+                                color: p.is_emergency ? '#ffffff' : undefined,
+                                fontWeight: p.is_emergency ? 700 : undefined,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                              }}
                               onClick={() => { setSelectedPass(p); setRemarks(''); }}
                             >
-                              <CheckCircle2 size={14} /> Review &amp; Act
+                              {p.is_emergency ? <Zap size={14} /> : <CheckCircle2 size={14} />}
+                              {p.is_emergency ? 'Emergency Review' : 'Review & Act'}
                             </button>
                           ) : (
                             <button
@@ -1110,7 +1225,32 @@ export default function StaffDashboard() {
               </div>
             )}
 
-            {isAwaitingMyRole(selectedPass.status, user?.role) ? (
+            {selectedPass.is_emergency && (
+              <div style={{
+                background: '#fff1f2',
+                border: '1px solid #fecdd3',
+                borderRadius: 10,
+                padding: '12px 14px',
+                marginBottom: '1.25rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+              }}>
+                <Flame size={22} color="#dc2626" />
+                <div style={{ fontSize: '0.84rem' }}>
+                  <strong style={{ color: '#9f1239', display: 'block', marginBottom: 2 }}>
+                    🚨 EMERGENCY GATE PASS PROTOCOL
+                  </strong>
+                  <span style={{ color: '#be123c', lineHeight: 1.4 }}>
+                    {(user?.role === 'PRINCIPAL' || user?.role === 'ADMIN')
+                      ? 'As Principal / Admin, approving this emergency pass immediately generates the exit QR code for the student.'
+                      : 'As Class Incharge, approving will endorse and forward this pass for instant HOD / Principal clearance.'}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {isAwaitingMyRole(selectedPass.status, user?.role, selectedPass.is_emergency) ? (
               <div>
                 <div className="form-group">
                   <label>Approver Remarks / Instructions</label>
@@ -1132,12 +1272,21 @@ export default function StaffDashboard() {
                     <XCircle size={16} /> Reject Request
                   </button>
                   <button
-                    className="btn btn-success"
-                    style={{ flex: 1 }}
+                    className="btn"
+                    style={{
+                      flex: 1,
+                      background: selectedPass.is_emergency ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' : '#16a34a',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontWeight: 700,
+                    }}
                     disabled={actionLoading}
                     onClick={() => handleDecision(selectedPass.id, 'APPROVE')}
                   >
-                    <CheckCircle2 size={16} /> Approve Pass
+                    {selectedPass.is_emergency ? <Zap size={16} /> : <CheckCircle2 size={16} />}
+                    {selectedPass.is_emergency
+                      ? ((user?.role === 'PRINCIPAL' || user?.role === 'ADMIN') ? 'Approve & Issue Instant QR' : 'Endorse Emergency Pass')
+                      : 'Approve Pass'}
                   </button>
                 </div>
               </div>

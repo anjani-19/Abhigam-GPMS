@@ -193,6 +193,41 @@ export default function QRPassModal({ pass, onClose, onPassUpdated }) {
           </div>
         )}
 
+        {currentPass.is_emergency && (
+          <div style={{
+            background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+            color: '#ffffff',
+            padding: '10px 16px',
+            borderRadius: 10,
+            marginBottom: 14,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            boxShadow: '0 4px 12px rgba(220, 38, 38, 0.25)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: '1.1rem' }}>🚨</span>
+              <div>
+                <strong style={{ fontSize: '0.85rem', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                  Emergency Gate Pass
+                </strong>
+                <div style={{ fontSize: '0.74rem', opacity: 0.95 }}>
+                  Authorized Emergency Clearance
+                </div>
+              </div>
+            </div>
+            <span style={{
+              background: 'rgba(255,255,255,0.2)',
+              fontSize: '0.72rem',
+              fontWeight: 800,
+              padding: '3px 8px',
+              borderRadius: 6,
+            }}>
+              PRIORITY EXIT
+            </span>
+          </div>
+        )}
+
         {/* Dynamic Status Notification Banner */}
         {isEarly && (
           <div

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, QrCode, Clock, CheckCircle2, AlertTriangle, ShieldCheck, X, Lock } from 'lucide-react';
+import { Plus, QrCode, Clock, CheckCircle2, AlertTriangle, ShieldCheck, X, Lock, Flame, Zap, AlertCircle } from 'lucide-react';
 import api from '../api';
 import Navbar from '../components/Navbar';
 import ProfileModal from '../components/ProfileModal';
@@ -16,6 +16,15 @@ export default function StudentDashboard() {
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [activeQRPass, setActiveQRPass] = useState(null);
   const [now, setNow] = useState(new Date());
+
+  // Form states
+  const [reason, setReason] = useState('');
+  const [exitAt, setExitAt] = useState('');
+  const [returnAt, setReturnAt] = useState('');
+  const [isEmergency, setIsEmergency] = useState(false);
+  const [emergencyReason, setEmergencyReason] = useState('');
+  const [formError, setFormError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const prevStatusesRef = React.useRef({});
 
@@ -84,6 +93,24 @@ export default function StudentDashboard() {
     return () => clearInterval(timer);
   }, []);
 
+  const openNewPassModal = (emergency = false) => {
+    setIsEmergency(emergency);
+    setReason('');
+    setEmergencyReason('');
+    setFormError('');
+    if (emergency) {
+      const nowStr = toLocalDatetimeInputString();
+      setExitAt(nowStr);
+      // Default return in 3 hours for emergency
+      const returnDate = new Date(Date.now() + 3 * 3600 * 1000);
+      setReturnAt(toLocalDatetimeInputString(returnDate));
+    } else {
+      setExitAt('');
+      setReturnAt('');
+    }
+    setShowRequestModal(true);
+  };
+
   const handleCreatePass = async (e) => {
     e.preventDefault();
     setFormError('');
@@ -93,13 +120,21 @@ export default function StudentDashboard() {
     }
     setSubmitting(true);
     try {
+      const passReason = isEmergency
+        ? (emergencyReason.trim() ? `[EMERGENCY] ${emergencyReason.trim()}` : reason.trim())
+        : reason.trim();
+
       await api.post('/gate-passes', {
-        reason,
+        reason: passReason,
         exit_at: new Date(exitAt).toISOString(),
         return_at: new Date(returnAt).toISOString(),
+        is_emergency: isEmergency,
+        emergency_reason: isEmergency ? (emergencyReason.trim() || reason.trim()) : null,
       });
       setShowRequestModal(false);
       setReason('');
+      setEmergencyReason('');
+      setIsEmergency(false);
       setExitAt('');
       setReturnAt('');
       loadDashboardData();
@@ -112,47 +147,78 @@ export default function StudentDashboard() {
 
   const getStatusBadge = (pass) => {
     const timing = getPassTiming(pass, now);
+    let badgeEl = null;
     switch (pass.status) {
       case 'QR_GENERATED':
         if (timing?.isEarly) {
-          return (
+          badgeEl = (
             <span className="badge" style={{ background: '#fef3c7', color: '#92400e', fontWeight: 600 }}>
               <Clock size={12} /> Activates at {formatTimeOnly(pass.exit_at)}
             </span>
           );
-        }
-        if (timing?.isExpired) {
-          return (
+        } else if (timing?.isExpired) {
+          badgeEl = (
             <span className="badge badge-rejected">
               <AlertTriangle size={12} /> Expired
             </span>
           );
+        } else {
+          badgeEl = (
+            <span className="badge badge-qr" style={{ background: '#d1fae5', color: '#065f46', fontWeight: 600 }}>
+              <CheckCircle2 size={12} /> QR Active
+            </span>
+          );
         }
-        return (
-          <span className="badge badge-qr" style={{ background: '#d1fae5', color: '#065f46', fontWeight: 600 }}>
-            <CheckCircle2 size={12} /> QR Active
-          </span>
-        );
+        break;
       case 'EXITED':
         if (timing?.isExpired) {
-          return (
+          badgeEl = (
             <span className="badge badge-rejected" style={{ background: '#fee2e2', color: '#991b1b', fontWeight: 600 }}>
               <AlertTriangle size={12} /> Overdue Return
             </span>
           );
+        } else {
+          badgeEl = (
+            <span className="badge badge-exited">
+              <Clock size={12} /> Campus Exited
+            </span>
+          );
         }
-        return (
-          <span className="badge badge-exited">
-            <Clock size={12} /> Campus Exited
-          </span>
-        );
+        break;
       case 'RETURNED':
-        return <span className="badge badge-returned"><CheckCircle2 size={12} /> Returned</span>;
+        badgeEl = <span className="badge badge-returned"><CheckCircle2 size={12} /> Returned</span>;
+        break;
       case 'REJECTED':
-        return <span className="badge badge-rejected"><AlertTriangle size={12} /> Rejected</span>;
+        badgeEl = <span className="badge badge-rejected"><AlertTriangle size={12} /> Rejected</span>;
+        break;
       default:
-        return <span className="badge badge-pending"><Clock size={12} /> {pass.status.replace('PENDING_', 'Pending ')}</span>;
+        badgeEl = <span className="badge badge-pending"><Clock size={12} /> {pass.status.replace('PENDING_', 'Pending ')}</span>;
     }
+
+    if (pass.is_emergency) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+          <span style={{
+            fontSize: '0.68rem',
+            fontWeight: 800,
+            padding: '2px 8px',
+            borderRadius: 6,
+            background: '#fee2e2',
+            color: '#dc2626',
+            border: '1px solid #f87171',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+            letterSpacing: '0.04em',
+            textTransform: 'uppercase',
+          }}>
+            🚨 Emergency
+          </span>
+          {badgeEl}
+        </div>
+      );
+    }
+    return badgeEl;
   };
 
   if (loading) {
@@ -187,14 +253,36 @@ export default function StudentDashboard() {
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <button
+              className="btn"
+              style={{
+                background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                color: '#ffffff',
+                border: 'none',
+                boxShadow: '0 2px 8px rgba(220, 38, 38, 0.35)',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+              onClick={() => {
+                if (completion < 100) {
+                  setShowProfileModal(true);
+                } else {
+                  openNewPassModal(true);
+                }
+              }}
+            >
+              <Flame size={16} /> Request Emergency Pass
+            </button>
             <button
               className="btn btn-primary"
               onClick={() => {
                 if (completion < 100) {
                   setShowProfileModal(true);
                 } else {
-                  setShowRequestModal(true);
+                  openNewPassModal(false);
                 }
               }}
             >
@@ -341,34 +429,137 @@ export default function StudentDashboard() {
         <div className="modal-backdrop" onClick={() => setShowRequestModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
             <div className="modal-header">
-              <h3>Request Campus Exit — JNN INSTITUTE Anumathi</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {isEmergency && <Flame size={20} color="#dc2626" />}
+                <h3 style={{ margin: 0 }}>
+                  {isEmergency ? 'Emergency Gate Pass Request' : 'Request Campus Exit — JNN INSTITUTE'}
+                </h3>
+              </div>
               <button className="btn-close" onClick={() => setShowRequestModal(false)}>
                 <X size={20} />
               </button>
             </div>
 
+            {/* Type selector toggle */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, padding: '1rem 1.25rem 0.25rem' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEmergency(false);
+                }}
+                style={{
+                  padding: '0.6rem 0.75rem',
+                  borderRadius: 8,
+                  border: isEmergency ? '1px solid #e2e8f0' : '2px solid #2563eb',
+                  background: isEmergency ? '#ffffff' : '#eff6ff',
+                  color: isEmergency ? '#64748b' : '#1d4ed8',
+                  fontWeight: 700,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                }}
+              >
+                Standard Outing
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEmergency(true);
+                  if (!exitAt) setExitAt(toLocalDatetimeInputString());
+                  if (!returnAt) setReturnAt(toLocalDatetimeInputString(new Date(Date.now() + 3 * 3600 * 1000)));
+                }}
+                style={{
+                  padding: '0.6rem 0.75rem',
+                  borderRadius: 8,
+                  border: isEmergency ? '2px solid #dc2626' : '1px solid #e2e8f0',
+                  background: isEmergency ? '#fef2f2' : '#ffffff',
+                  color: isEmergency ? '#dc2626' : '#64748b',
+                  fontWeight: 700,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  transition: 'all 0.15s',
+                }}
+              >
+                <Flame size={15} /> Emergency Pass
+              </button>
+            </div>
+
+            {/* Emergency Info Callout */}
+            {isEmergency && (
+              <div style={{
+                margin: '0.75rem 1.25rem 0',
+                padding: '0.85rem 1rem',
+                background: '#fff1f2',
+                border: '1px solid #fecdd3',
+                borderRadius: 10,
+                fontSize: '0.82rem',
+                color: '#9f1239',
+                lineHeight: 1.5,
+              }}>
+                <div style={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+                  <AlertCircle size={15} color="#e11d48" /> Fast-Track Clearance Protocol
+                </div>
+                Your request will be alerted immediately to your <strong>Class Incharge, HOD, and Principal</strong>.
+                As soon as <strong>either the HOD or Principal approves</strong>, your digital QR gate pass is issued instantly.
+              </div>
+            )}
+
             {formError && (
-              <div className="alert alert-error">
+              <div className="alert alert-error" style={{ margin: '0.75rem 1.25rem 0' }}>
                 <AlertTriangle size={18} />
                 <span>{formError}</span>
               </div>
             )}
 
-            <form onSubmit={handleCreatePass}>
+            <form onSubmit={handleCreatePass} style={{ padding: '1rem 1.25rem' }}>
               <div className="form-group">
-                <label>Reason for Leave</label>
+                <label style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>{isEmergency ? 'Emergency Reason / Situation' : 'Reason for Leave'}</span>
+                  {isEmergency && <span style={{ color: '#dc2626', fontSize: '0.75rem', fontWeight: 700 }}>HIGH PRIORITY</span>}
+                </label>
                 <textarea
                   className="form-control"
                   rows="3"
-                  placeholder="Explain why you need to exit campus (e.g. Medical appointment, Family event, Official exam)..."
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
+                  placeholder={isEmergency ? "State the urgent reason (e.g. Medical emergency, urgent family situation, personal injury)..." : "Explain why you need to exit campus (e.g. Medical appointment, Family event)..."}
+                  value={isEmergency ? emergencyReason : reason}
+                  onChange={(e) => {
+                    if (isEmergency) {
+                      setEmergencyReason(e.target.value);
+                      setReason(e.target.value);
+                    } else {
+                      setReason(e.target.value);
+                    }
+                  }}
                   required
                 />
               </div>
 
               <div className="form-group">
-                <label>Departure Date & Time</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <label style={{ margin: 0 }}>Departure Date & Time</label>
+                  {isEmergency && (
+                    <button
+                      type="button"
+                      onClick={() => setExitAt(toLocalDatetimeInputString())}
+                      style={{
+                        background: '#fee2e2',
+                        border: '1px solid #fca5a5',
+                        color: '#b91c1c',
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ⚡ Leave Now
+                    </button>
+                  )}
+                </div>
                 <input
                   type="datetime-local"
                   className="form-control"
@@ -377,8 +568,8 @@ export default function StudentDashboard() {
                   onChange={(e) => setExitAt(e.target.value)}
                   required
                 />
-                <small style={{ color: '#4f46e5', fontSize: '0.78rem', marginTop: 4, display: 'block', fontWeight: 500 }}>
-                  ⚡ QR code activates 10 minutes before this departure time.
+                <small style={{ color: isEmergency ? '#dc2626' : '#4f46e5', fontSize: '0.78rem', marginTop: 4, display: 'block', fontWeight: 500 }}>
+                  {isEmergency ? '🚨 Emergency passes activate immediately once approved by HOD or Principal.' : '⚡ QR code activates 10 minutes before this departure time.'}
                 </small>
               </div>
 
@@ -393,7 +584,7 @@ export default function StudentDashboard() {
                   required
                 />
                 <small style={{ color: '#64748b', fontSize: '0.78rem', marginTop: 4, display: 'block' }}>
-                  ⏱️ QR pass will remain valid and expire 30 minutes after this return time.
+                  ⏱️ Pass remains valid and expires 30 minutes after return time.
                 </small>
               </div>
 
@@ -401,8 +592,18 @@ export default function StudentDashboard() {
                 <button type="button" className="btn btn-secondary" onClick={() => setShowRequestModal(false)}>
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary" disabled={submitting}>
-                  {submitting ? 'Submitting...' : 'Submit Request'}
+                <button
+                  type="submit"
+                  className="btn"
+                  style={{
+                    background: isEmergency ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' : undefined,
+                    color: isEmergency ? '#ffffff' : undefined,
+                    border: 'none',
+                    fontWeight: 700,
+                  }}
+                  disabled={submitting}
+                >
+                  {submitting ? 'Submitting...' : (isEmergency ? '🚨 Submit Emergency Request' : 'Submit Request')}
                 </button>
               </div>
             </form>

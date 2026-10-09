@@ -24,13 +24,10 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Install dependencies and build web bundle
         run: |
           cd frontend
-          npm ci
+          npm install
           npm run build
           npx cap sync android
 

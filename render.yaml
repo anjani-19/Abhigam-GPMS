@@ -2,7 +2,7 @@ services:
   # ── FASTAPI BACKEND WEB SERVICE ──
   - type: web
     name: abhigam-gpms-backend
-    env: python
+    runtime: python
     region: singapore
     plan: free
     rootDir: backend
@@ -19,10 +19,8 @@ services:
         value: "3.11.9"
 
   # ── REACT / VITE FRONTEND STATIC SITE ──
-  - type: web
+  - type: static_site
     name: abhigam-gpms-frontend
-    env: static
-    plan: free
     rootDir: frontend
     buildCommand: "npm install && npm run build"
     staticPublishPath: dist

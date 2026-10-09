@@ -30,9 +30,12 @@ Thumbs.db
 # Agents
 .agents/
 
-# Android build outputs & caches
+# Frontend & Android
+frontend/node_modules/
+frontend/dist/
 frontend/android/.gradle/
 frontend/android/build/
 frontend/android/app/build/
+frontend/android/app/src/main/assets/public/
+.gradle/
 *.apk
-local.properties

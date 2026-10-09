@@ -1,0 +1,9 @@
+11:09:24.015238 ...\Application.cs:106  trace: [RunInternalAsync] Version: 2.6.0.0
+11:09:24.019233 ...\Application.cs:107  trace: [RunInternalAsync] Runtime: .NET Framework 4.8.9345.0
+11:09:24.021169 ...\Application.cs:108  trace: [RunInternalAsync] Platform: Windows (x86-64)
+11:09:24.023169 ...\Application.cs:109  trace: [RunInternalAsync] OSVersion: 10.0 (build 26300)
+11:09:24.025168 ...\Application.cs:110  trace: [RunInternalAsync] AppPath: C:\Users\panja\AppData\Local\Programs\MinGit\mingw64\bin\git-credential-manager.exe
+11:09:24.027189 ...\Application.cs:111  trace: [RunInternalAsync] InstallDir: C:\Users\panja\AppData\Local\Programs\MinGit\mingw64\bin\
+11:09:24.028168 ...\Application.cs:112  trace: [RunInternalAsync] Arguments: github login --device
+11:09:24.071170 ...pClientFactory.cs:60 trace: [CreateClient] Creating new HTTP client instance...
+11:09:24.082304 ...pClientFactory.cs:80 trace: [CreateClient] Git's SSL/TLS backend is: OpenSsl

@@ -1,0 +1,44 @@
+{
+  "name": "Abhigam — Smart Gate Pass Management System",
+  "short_name": "Abhigam",
+  "description": "AI & IoT Powered Smart Gate Pass Management System for JNN Institute",
+  "start_url": "/",
+  "id": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0b0f19",
+  "theme_color": "#2563eb",
+  "categories": ["education", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "My Passes",
+      "url": "/dashboard",
+      "description": "View active gate passes and QR tokens"
+    },
+    {
+      "name": "Scan QR Pass",
+      "url": "/security",
+      "description": "Terminal scanner for security guards"
+    }
+  ]
+}

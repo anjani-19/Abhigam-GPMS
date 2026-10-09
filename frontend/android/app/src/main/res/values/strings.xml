@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Abhigam GPMS</string>
+    <string name="title_activity_main">Abhigam GPMS</string>
+    <string name="package_name">com.jnn.abhigam</string>
+    <string name="custom_url_scheme">com.jnn.abhigam</string>
+</resources>
